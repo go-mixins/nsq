@@ -17,6 +17,7 @@ package nsq
 
 import (
 	"github.com/nsqio/go-nsq"
+	"github.com/pkg/errors"
 
 	"encoding/json"
 	"strings"
@@ -102,8 +103,13 @@ func (q *Queue) Close() {
 // Connect connects consumers to the queue
 func (q *Queue) Connect() (err error) {
 	for i := range q.consumers {
-		if err = q.consumers[i].ConnectToNSQLookupd(q.NsqLookupD); err != nil {
-			return
+		if q.NsqLookupD == "" {
+			err = q.consumers[i].ConnectToNSQD(q.NsqD)
+		} else {
+			err = q.consumers[i].ConnectToNSQLookupd(q.NsqLookupD)
+		}
+		if err != nil {
+			return errors.Wrapf(err, "connecting consumer to NSQ")
 		}
 	}
 	return
