@@ -24,6 +24,10 @@ import (
 	"sync"
 )
 
+type logger interface {
+	Output(calldepth int, s string) error
+}
+
 // Queue combines NSQ message producer and consumer into one object. The
 // structure members specify configuration parameters and must be configured
 // externally, e.g. using envconfig.
@@ -39,6 +43,8 @@ type Queue struct {
 	*nsq.Producer
 	consumers []*nsq.Consumer
 	nsqConfig *nsq.Config
+	l         logger
+	lvl       nsq.LogLevel
 }
 
 // Init must be called before adding message handlers and producing messages
@@ -60,13 +66,11 @@ func (q *Queue) Init() (err error) {
 	return
 }
 
-type logger interface {
-	Output(calldepth int, s string) error
-}
-
 // SetLogger forwards its arguments to the corresponding method of the producer and
 // all of the consumers. It can be used to connect external logging facilities.
 func (q *Queue) SetLogger(l logger, lvl nsq.LogLevel) {
+	q.l = l
+	q.lvl = lvl
 	q.Producer.SetLogger(l, lvl)
 	for i := range q.consumers {
 		q.consumers[i].SetLogger(l, lvl)
@@ -83,6 +87,7 @@ func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) 
 	for _, f := range handlers {
 		res.AddHandler(f)
 	}
+	res.SetLogger(q.l, q.lvl)
 	return
 }
 
