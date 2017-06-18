@@ -91,6 +91,18 @@ func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) 
 	return
 }
 
+// AddConsumerN creates new consumer for given topic and channel and
+// assign handler with specified concurency
+func (q *Queue) AddConsumerN(topic, channel string, concurrency int, handler nsq.HandlerFunc) (res *nsq.Consumer, err error) {
+	if res, err = nsq.NewConsumer(topic, channel, q.nsqConfig); err != nil {
+		return
+	}
+	q.consumers = append(q.consumers, res)
+	res.AddConcurrentHandlers(handler, concurrency)
+	res.SetLogger(q.l, q.lvl)
+	return
+}
+
 // Close sends a stop signal to consumers and blocks until all of them are stopped
 func (q *Queue) Close() {
 	var wg sync.WaitGroup
