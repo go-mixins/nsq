@@ -95,10 +95,12 @@ func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) 
 // assign handler with specified concurency
 func (q *Queue) AddConsumerN(topic, channel string, concurrency int, handler nsq.HandlerFunc) (res *nsq.Consumer, err error) {
 	if res, err = nsq.NewConsumer(topic, channel, q.nsqConfig); err != nil {
+		err = errors.Wrapf(err, "creating %s", topic)
 		return
 	}
 	q.consumers = append(q.consumers, res)
 	res.AddConcurrentHandlers(handler, concurrency)
+	res.ChangeMaxInFlight(concurrency * 10)
 	res.SetLogger(q.l, q.lvl)
 	return
 }
