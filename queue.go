@@ -59,10 +59,12 @@ func (q *Queue) Init() (err error) {
 			val = vals[1]
 		}
 		if err = q.nsqConfig.Set(vals[0], val); err != nil {
+			err = errors.Wrap(err, "setting NSQ option")
 			return
 		}
 	}
 	q.Producer, err = nsq.NewProducer(q.NsqD, q.nsqConfig)
+	err = errors.Wrap(err, "creating producer")
 	return
 }
 
@@ -81,6 +83,7 @@ func (q *Queue) SetLogger(l logger, lvl nsq.LogLevel) {
 // specified handlers if any
 func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) (res *nsq.Consumer, err error) {
 	if res, err = nsq.NewConsumer(topic, channel, q.nsqConfig); err != nil {
+		err = errors.Wrapf(err, "creating consumer")
 		return
 	}
 	q.consumers = append(q.consumers, res)
@@ -92,14 +95,14 @@ func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) 
 }
 
 // AddConsumerN creates new consumer for given topic and channel and
-// assign handler with specified concurency
-func (q *Queue) AddConsumerN(topic, channel string, concurrency int, handler nsq.HandlerFunc) (res *nsq.Consumer, err error) {
+// assigns handler with specified concurency
+func (q *Queue) AddConsumerN(topic, channel string, concurrency int, handler nsq.HandlerFunc, mw ...Middleware) (res *nsq.Consumer, err error) {
 	if res, err = nsq.NewConsumer(topic, channel, q.nsqConfig); err != nil {
-		err = errors.Wrapf(err, "creating %s", topic)
+		err = errors.Wrapf(err, "creating topic %q", topic)
 		return
 	}
 	q.consumers = append(q.consumers, res)
-	res.AddConcurrentHandlers(handler, concurrency)
+	res.AddConcurrentHandlers(MiddlewareChain(mw).Apply(handler), concurrency)
 	res.ChangeMaxInFlight(concurrency * 10)
 	res.SetLogger(q.l, q.lvl)
 	return
@@ -138,7 +141,7 @@ func (q *Queue) Connect() (err error) {
 func (q *Queue) Publish(topic string, obj interface{}) error {
 	jsonData, err := json.Marshal(obj)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "marshaling JSON")
 	}
-	return q.Producer.Publish(topic, jsonData)
+	return errors.Wrapf(q.Producer.Publish(topic, jsonData), "publishing to NSQ")
 }
