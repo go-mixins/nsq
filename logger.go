@@ -30,9 +30,9 @@ func (q *Queue) Output(_ int, s string) error {
 	s = strings.TrimSpace(s)
 	var msg, level string
 	if len(s) < 3 {
-		msg, level = s, ""
+		level, msg = "", s
 	} else {
-		msg, level = s[:3], s[3:]
+		level, msg = s[:3], s[3:]
 	}
 	switch level {
 	case ErrorLevel.String():
