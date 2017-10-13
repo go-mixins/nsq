@@ -24,10 +24,6 @@ import (
 	"sync"
 )
 
-type logger interface {
-	Output(calldepth int, s string) error
-}
-
 // Queue combines NSQ message producer and consumer into one object. The
 // structure members specify configuration parameters and must be configured
 // externally, e.g. using envconfig.
@@ -38,13 +34,13 @@ type Queue struct {
 	NsqLookupD string `default:"localhost:4161"`
 	// Common NSQ options both for consumer and producer. Specified as a
 	// comma-separated list of key=value pairs.
-	NsqOptions string `default:"max_attempts=65535"`
+	NsqOptions string       `default:"max_attempts=65535"`
+	LogLevel   nsq.LogLevel `default:"0"`
 
+	Logger
 	*nsq.Producer
 	consumers []*nsq.Consumer
 	nsqConfig *nsq.Config
-	l         logger
-	lvl       nsq.LogLevel
 }
 
 // Init must be called before adding message handlers and producing messages
@@ -59,24 +55,17 @@ func (q *Queue) Init() (err error) {
 			val = vals[1]
 		}
 		if err = q.nsqConfig.Set(vals[0], val); err != nil {
-			err = errors.Wrap(err, "setting NSQ option")
-			return
+			return errors.Wrap(err, "setting NSQ option")
 		}
 	}
-	q.Producer, err = nsq.NewProducer(q.NsqD, q.nsqConfig)
-	err = errors.Wrap(err, "creating producer")
-	return
-}
-
-// SetLogger forwards its arguments to the corresponding method of the producer and
-// all of the consumers. It can be used to connect external logging facilities.
-func (q *Queue) SetLogger(l logger, lvl nsq.LogLevel) {
-	q.l = l
-	q.lvl = lvl
-	q.Producer.SetLogger(l, lvl)
-	for i := range q.consumers {
-		q.consumers[i].SetLogger(l, lvl)
+	if q.Logger == nil && q.LogLevel == 0 {
+		q.LogLevel = ErrorLevel
 	}
+	if q.Producer, err = nsq.NewProducer(q.NsqD, q.nsqConfig); err != nil {
+		return errors.Wrap(err, "creating producer")
+	}
+	q.Producer.SetLogger(q, q.LogLevel)
+	return
 }
 
 // AddConsumer creates new consumer for given topic and channel and adds
@@ -90,7 +79,7 @@ func (q *Queue) AddConsumer(topic, channel string, handlers ...nsq.HandlerFunc) 
 	for _, f := range handlers {
 		res.AddHandler(f)
 	}
-	res.SetLogger(q.l, q.lvl)
+	res.SetLogger(q, q.LogLevel)
 	return
 }
 
@@ -104,7 +93,7 @@ func (q *Queue) AddConsumerN(topic, channel string, concurrency int, handler nsq
 	q.consumers = append(q.consumers, res)
 	res.AddConcurrentHandlers(MiddlewareChain(mw).Apply(handler), concurrency)
 	res.ChangeMaxInFlight(concurrency * 10)
-	res.SetLogger(q.l, q.lvl)
+	res.SetLogger(q, q.LogLevel)
 	return
 }
 
