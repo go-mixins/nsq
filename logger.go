@@ -32,7 +32,7 @@ func (q *Queue) Output(_ int, s string) error {
 	if len(s) < 3 {
 		msg, level = s, ""
 	} else {
-		msg, level = s[:3], s[3:]
+		msg, level = s[3:], s[:3]
 	}
 	switch level {
 	case ErrorLevel.String():
