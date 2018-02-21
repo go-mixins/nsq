@@ -28,21 +28,22 @@ func (q *Queue) Output(_ int, s string) error {
 		return nil
 	}
 	s = strings.TrimSpace(s)
-	var msg, level string
-	if len(s) < 3 {
-		level, msg = "", s
-	} else {
-		level, msg = s[:3], s[3:]
+	var level string
+	if len(s) >= 3 {
+		level, s = s[:3], s[3:]
 	}
 	switch level {
 	case ErrorLevel.String():
-		q.Error(msg)
+		if !q.KeepNsqLookupD404 && strings.Contains(s, "TOPIC_NOT_FOUND") {
+			return nil
+		}
+		q.Logger.Error(s)
 	case WarnLevel.String():
-		q.Warn(msg)
+		q.Logger.Warn(s)
 	case DebugLevel.String():
-		q.Debug(msg)
+		q.Logger.Debug(s)
 	default:
-		q.Info(msg)
+		q.Logger.Info(s)
 	}
 	return nil
 }

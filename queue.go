@@ -34,10 +34,10 @@ type Queue struct {
 	NsqLookupD string `default:"localhost:4161"`
 	// Common NSQ options both for consumer and producer. Specified as a
 	// comma-separated list of key=value pairs.
-	NsqOptions string       `default:"max_attempts=65535"`
-	LogLevel   nsq.LogLevel `default:"0"`
-
-	Logger
+	NsqOptions        string       `default:"max_attempts=65535"`
+	LogLevel          nsq.LogLevel `default:"0"`
+	KeepNsqLookupD404 bool         `default:"false"` // Filter out TOPIC NOT FOUND log messages by default
+	Logger            Logger
 	*nsq.Producer
 	consumers []*nsq.Consumer
 	nsqConfig *nsq.Config
