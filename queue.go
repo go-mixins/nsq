@@ -30,8 +30,8 @@ import (
 type Queue struct {
 	// NSQD connection URL for producer
 	NsqD string `default:"localhost:4150"`
-	// NSQLookupD URL for message consumer(s)
-	NsqLookupD string `default:"localhost:4161"`
+	// NSQLookupD URL(s) for message consumer(s)
+	NsqLookupD []string `default:"localhost:4161"`
 	// Common NSQ options both for consumer and producer. Specified as a
 	// comma-separated list of key=value pairs.
 	NsqOptions        string       `default:"max_attempts=65535"`
@@ -114,10 +114,10 @@ func (q *Queue) Close() {
 // Connect connects consumers to the queue
 func (q *Queue) Connect() (err error) {
 	for i := range q.consumers {
-		if q.NsqLookupD == "" {
+		if len(q.NsqLookupD) == 0 {
 			err = q.consumers[i].ConnectToNSQD(q.NsqD)
 		} else {
-			err = q.consumers[i].ConnectToNSQLookupd(q.NsqLookupD)
+			err = q.consumers[i].ConnectToNSQLookupds(q.NsqLookupD)
 		}
 		if err != nil {
 			return errors.Wrapf(err, "connecting consumer to NSQ")
