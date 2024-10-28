@@ -12,17 +12,21 @@
 // err = q.Connect()
 // ...
 // q.Publish("queue", &obj)
-//
 package nsq
 
 import (
-	"github.com/nsqio/go-nsq"
-	"github.com/pkg/errors"
-
 	"encoding/json"
 	"strings"
 	"sync"
+
+	"github.com/nsqio/go-nsq"
+	"github.com/pkg/errors"
 )
+
+type Producer interface {
+	Publish(topic string, body []byte) error
+	SetLogger(logger NsqLogger, level nsq.LogLevel)
+}
 
 // Queue combines NSQ message producer and consumer into one object. The
 // structure members specify configuration parameters and must be configured
@@ -38,9 +42,9 @@ type Queue struct {
 	LogLevel          nsq.LogLevel `default:"0"`
 	KeepNsqLookupD404 bool         `default:"false"` // Filter out TOPIC NOT FOUND log messages by default
 	Logger            Logger
-	*nsq.Producer
-	consumers []*nsq.Consumer
-	nsqConfig *nsq.Config
+	Producer          Producer
+	consumers         []*nsq.Consumer
+	nsqConfig         *nsq.Config
 }
 
 // Init must be called before adding message handlers and producing messages
@@ -61,10 +65,20 @@ func (q *Queue) Init() (err error) {
 	if q.Logger == nil && q.LogLevel == 0 {
 		q.LogLevel = ErrorLevel
 	}
-	if q.Producer, err = nsq.NewProducer(q.NsqD, q.nsqConfig); err != nil {
-		return errors.Wrap(err, "creating producer")
+	nsqds := strings.Split(q.NsqD, ",")
+	if l := len(nsqds); l > 1 {
+		rrp, err := NewRRProducer(q.NsqOptions, nsqds, q, q.LogLevel)
+		if err != nil {
+			return err
+		}
+		q.Producer = rrp
+	} else {
+		pr, err := nsq.NewProducer(q.NsqD, q.nsqConfig)
+		if err != nil {
+			return errors.Wrap(err, "creating producer")
+		}
+		pr.SetLogger(q, q.LogLevel)
 	}
-	q.Producer.SetLogger(q, q.LogLevel)
 	return
 }
 
