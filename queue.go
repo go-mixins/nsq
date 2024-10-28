@@ -26,6 +26,7 @@ import (
 type Producer interface {
 	Publish(topic string, body []byte) error
 	SetLogger(logger NsqLogger, level nsq.LogLevel)
+	Ping() error
 }
 
 // Queue combines NSQ message producer and consumer into one object. The
