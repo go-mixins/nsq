@@ -18,15 +18,25 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nsqio/go-nsq"
 	"github.com/pkg/errors"
 )
 
-type Producer interface {
+type Publisher interface {
 	Publish(topic string, body []byte) error
-	SetLogger(logger NsqLogger, level nsq.LogLevel)
+	PublishAsync(topic string, body []byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error
+	MultiPublishAsync(topic string, body [][]byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error
+	MultiPublish(topic string, body [][]byte) error
+	DeferredPublish(topic string, delay time.Duration, body []byte) error
+	DeferredPublishAsync(topic string, delay time.Duration, body []byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error
 	Ping() error
+}
+
+type Producer interface {
+	Publisher
+	SetLogger(logger NsqLogger, level nsq.LogLevel)
 }
 
 // Queue combines NSQ message producer and consumer into one object. The

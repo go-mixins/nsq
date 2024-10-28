@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/nsqio/go-nsq"
 )
@@ -22,6 +23,8 @@ func (q *RRProducer) SetLogger(logger NsqLogger, level nsq.LogLevel) {
 		pr.SetLogger(logger, level)
 	}
 }
+
+var _ Publisher = (*RRProducer)(nil)
 
 func NewRRProducer(options string, nsqDs []string, logger NsqLogger, logLevel nsq.LogLevel) (*RRProducer, error) {
 	cfg := nsq.NewConfig()
@@ -49,11 +52,11 @@ func NewRRProducer(options string, nsqDs []string, logger NsqLogger, logLevel ns
 	return res, nil
 }
 
-func (q *RRProducer) Publish(topic string, payload []byte) error {
+func (q *RRProducer) roundRobin(f func(p Publisher) error) error {
 	for i := range q.producers {
 		idx := atomic.AddUint64(&q.idx, 1) - 1
 		p := q.producers[idx%uint64(len(q.producers))]
-		if err := p.Publish(topic, payload); err != nil {
+		if err := f(p); err != nil {
 			if i == len(q.producers)-1 {
 				return fmt.Errorf("publishing to NSQd %d: %+v", idx, err)
 			}
@@ -62,6 +65,48 @@ func (q *RRProducer) Publish(topic string, payload []byte) error {
 		return nil
 	}
 	return fmt.Errorf("no producers configured")
+}
+
+// DeferredPublish implements Publisher.
+func (q *RRProducer) DeferredPublish(topic string, delay time.Duration, body []byte) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.DeferredPublish(topic, delay, body)
+	})
+}
+
+// DeferredPublishAsync implements Publisher.
+func (q *RRProducer) DeferredPublishAsync(topic string, delay time.Duration, body []byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.DeferredPublishAsync(topic, delay, body, doneChan, args...)
+	})
+}
+
+// MultiPublish implements Publisher.
+func (q *RRProducer) MultiPublish(topic string, body [][]byte) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.MultiPublish(topic, body)
+	})
+}
+
+// MultiPublishAsync implements Publisher.
+func (q *RRProducer) MultiPublishAsync(topic string, body [][]byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.MultiPublishAsync(topic, body, doneChan, args...)
+	})
+}
+
+// Publish implements Publisher.
+func (q *RRProducer) Publish(topic string, body []byte) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.Publish(topic, body)
+	})
+}
+
+// PublishAsync implements Publisher.
+func (q *RRProducer) PublishAsync(topic string, body []byte, doneChan chan *nsq.ProducerTransaction, args ...interface{}) error {
+	return q.roundRobin(func(p Publisher) error {
+		return p.PublishAsync(topic, body, doneChan, args...)
+	})
 }
 
 func (q *RRProducer) Ping() error {
