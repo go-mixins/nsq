@@ -39,6 +39,14 @@ type Producer interface {
 	SetLogger(logger NsqLogger, level nsq.LogLevel)
 }
 
+type nsqProducer struct {
+	*nsq.Producer
+}
+
+func (q *nsqProducer) SetLogger(logger NsqLogger, level nsq.LogLevel) {
+	q.Producer.SetLogger(logger, level)
+}
+
 // Queue combines NSQ message producer and consumer into one object. The
 // structure members specify configuration parameters and must be configured
 // externally, e.g. using envconfig.
@@ -89,6 +97,7 @@ func (q *Queue) Init() (err error) {
 			return errors.Wrap(err, "creating producer")
 		}
 		pr.SetLogger(q, q.LogLevel)
+		q.Producer = &nsqProducer{pr}
 	}
 	return
 }
